@@ -1,9 +1,9 @@
 " vim: set foldmethod=expr foldlevel=0 nomodeline :
 
 " use different directories for vim and neovim
-let cache_dir  = expand('~/.cache/' . ( has('nvim') ? 'nvim' : 'vim' ))
-let config_dir = expand(has('nvim') ? '~/.config/nvim' : '~/.vim')
-let data_dir   = expand('~/.local/share/' . ( has('nvim') ? 'nvim' : 'vim' ))
+let cache_dir  = has('nvim') ? stdpath('cache') : expand('~/.cache/vim' )
+let config_dir = has('nvim') ? stdpath('config') : expand('~/.vim')
+let data_dir   = has('nvim') ? stdpath('data') : expand('~/.local/share/vim')
 
 " other directories
 let fzf_root = fnamemodify(data_dir, ':h') . '/fzf'
@@ -97,11 +97,53 @@ vnoremap <Leader>P "+P
 nnoremap <C-w>- :new<CR>
 nnoremap <C-w>\ :vnew<CR>
 
+"" show documentation
+function! s:show_documentation()
+  if (index(['vim','help'], &filetype) >= 0)
+    execute 'h '. expand('<cword>')
+  else
+    execute '!' . &keywordprg . ' ' . expand('<cword>')
+  endif
+endfunction
+nnoremap <silent> K :call <SID>show_documentation()<CR>
+
+"# FileType Specific Settings
+
+"## FileType: help
+
+augroup help_custom_setting
+  autocmd!
+  autocmd FileType help nmap <buffer> gq :quit<CR>
+augroup END
+
+"## FileType: json
+
+autocmd BufNewFile,BufRead tsconfig*.json setlocal filetype=jsonc
+autocmd FileType jsonc syntax match Comment +\/\/.\+$+
+
+"## FileType: tmux
+
+autocmd FileType tmux nnoremap <silent><buffer> K :call tmux#man()<CR>
+
+"## FileType: vim
+
+autocmd FileType vim set foldexpr=VimFolds(v:lnum)
+
+function! VimFolds(lnum)
+  let s:cur_line = getline(a:lnum)
+  if s:cur_line =~ '^"#'
+    return '>' . (matchend(s:cur_line, '"#*') - 1)
+  else
+    return '='
+  endif
+endfunction
+
 "# Plugins
 
 " install vim-plug automagically
-if empty(glob(config_dir . '/autoload/plug.vim'))
-  silent execute '!curl -fLo ' . config_dir . '/autoload/plug.vim' . ' --create-dirs '
+let plug_path = (has('nvim') ? data_dir : config_dir) . '/autoload/plug.vim'
+if empty(glob(plug_path))
+  silent execute '!curl -fLo ' . plug_path . ' --create-dirs '
     \ . 'https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
   autocmd VimEnter * PlugInstall --sync | source $MYVIMRC
 endif
@@ -169,8 +211,33 @@ Plug 'tpope/vim-markdown'
 Plug 'vitalk/vim-shebang'
 Plug 'zinit-zsh/zinit-vim-syntax'
 
-" dark magic
-Plug 'neoclide/coc.nvim', { 'branch': 'release' }
+if has('nvim')
+  Plug 'folke/lsp-colors.nvim'
+  Plug 'folke/trouble.nvim'
+  Plug 'glepnir/lspsaga.nvim'
+  Plug 'hrsh7th/nvim-compe'
+  Plug 'hrsh7th/vim-vsnip'
+  Plug 'JoosepAlviste/nvim-ts-context-commentstring'
+  Plug 'jose-elias-alvarez/null-ls.nvim'
+  Plug 'jose-elias-alvarez/nvim-lsp-ts-utils'
+  Plug 'kosayoda/nvim-lightbulb'
+  Plug 'MunifTanjim/eslint.nvim'
+  Plug 'MunifTanjim/prettier.nvim'
+  Plug '~/.local/share/nvim/plugged/nui.nvim'
+  Plug 'kabouzeid/nvim-lspinstall'
+  Plug 'kyazdani42/nvim-web-devicons'
+  Plug 'kyazdani42/nvim-tree.lua'
+  Plug 'neovim/nvim-lspconfig'
+  Plug 'nvim-lua/plenary.nvim'
+  Plug 'nvim-lua/popup.nvim'
+  Plug 'nvim-telescope/telescope.nvim'
+  Plug 'nvim-telescope/telescope-fzf-native.nvim', { 'do': 'make' }
+  Plug 'nvim-treesitter/nvim-treesitter', { 'do': ':TSUpdate' }
+  Plug 'nvim-treesitter/playground'
+  Plug 'windwp/nvim-ts-autotag'
+else
+  Plug 'neoclide/coc.nvim', { 'branch': 'release' }
+endif
 
 call plug#end()
 
@@ -199,12 +266,14 @@ let g:carbon_now_sh_options = {
 
 "## Plugin: coc
 
+if !has('nvim')
+
 let g:coc_global_extensions = [
       \ 'coc-actions',
       \ 'coc-css',
       \ 'coc-emoji',
-      \ 'coc-eslint',
       \ 'coc-explorer',
+      \ 'coc-eslint',
       \ 'coc-html',
       \ 'coc-json',
       \ 'coc-marketplace',
@@ -272,8 +341,6 @@ nmap <silent> ]d <Plug>(coc-diagnostic-next)
 nmap <Leader>ac <Plug>(coc-codeaction-line)
 "" apply autofix to problem on the current line
 nmap <Leader>qf  <Plug>(coc-fix-current)
-"" show documentation in preview window.
-nnoremap <silent> K :call <SID>show_documentation()<CR>
 "" rename symbol
 nmap <Leader>rn <Plug>(coc-rename)
 "" format code
@@ -282,8 +349,6 @@ nmap <Leader>f <Plug>(coc-format-selected)
 "" selection range
 nmap <silent> <Leader>v <Plug>(coc-range-select)
 xmap <silent> <Leader>v <Plug>(coc-range-select)
-"" open explorer
-nmap <silent> <Space>e :CocCommand explorer<CR>
 " "" list diagnostics
 " nnoremap <silent> <Leader>ld  :<C-u>CocList diagnostics<cr>
 " "" list extensions
@@ -300,9 +365,10 @@ nmap <silent> <Space>e :CocCommand explorer<CR>
 " nnoremap <silent> <Leader>lk  :<C-u>CocPrev<CR>
 " "" list: reopen last list
 " nnoremap <silent> <Leader>lp  :<C-u>CocListResume<CR>
+"" open explorer
+nmap <silent> <Space>e :CocCommand explorer<CR>
 
 "### coc: autocommands
-
 augroup coc_augroup
   autocmd!
   " highlight the symbol and its references when holding the cursor.
@@ -316,6 +382,8 @@ augroup coc_augroup
   autocmd FileType javascript,javascriptreact,typescript,typescriptreact
         \ nmap <silent> gf <Plug>(coc-definition)
 augroup END
+
+endif
 
 "## Plugin: fzf
 
@@ -391,7 +459,7 @@ let g:Hexokinase_highlighters = ['foreground']
 
 "## Plugin: markdown
 
-let g:markdown_fenced_languages = ['css', 'help', 'html', 'javascript', 'js=javascript', 'json=javascript', 'sh', 'typescript', 'ts=typescript', 'vim']
+let g:markdown_fenced_languages = ['css', 'help', 'html', 'javascript', 'js=javascript', 'json=javascript', 'lua', 'sh', 'typescript', 'ts=typescript', 'vim']
 
 "## Plugin: maximizer
 
@@ -454,6 +522,21 @@ nmap <Leader>dj  <Plug>VimspectorStepOver
 nmap <Leader>dl  <Plug>VimspectorStepInto
 nmap <Leader>dk  <Plug>VimspectorStepOut
 nmap <Leader>dq  :VimspectorReset<CR>
+
+"## neovim Plugins
+
+if has('nvim')
+
+lua << EOF
+
+require('config/lsp')
+require('config/telescope')
+require('config/treesitter')
+require('config/tree')
+
+EOF
+
+endif
 
 "# Appearance Settings
 set cursorline
@@ -518,51 +601,92 @@ augroup auto_relaivenumber_toggle
   autocmd BufLeave,FocusLost,InsertEnter,WinLeave   * if &l:nu && empty(&bt) | setl nornu | endif
 augroup END
 
-" keymaps: gruvbox
-if g:colors_name == 'gruvbox'
-  nnoremap <silent> [oh :call gruvbox#hls_show()<CR>
-  nnoremap <silent> ]oh :call gruvbox#hls_hide()<CR>
-  nnoremap <silent> yoh :call gruvbox#hls_toggle()<CR>
-  nnoremap * :let @/ = ""<CR>:call gruvbox#hls_show()<CR>*
-  nnoremap / :let @/ = ""<CR>:call gruvbox#hls_show()<CR>/
-  nnoremap ? :let @/ = ""<CR>:call gruvbox#hls_show()<CR>?
-endif
+" " keymaps: gruvbox
+" if g:colors_name == 'gruvbox'
+"   nnoremap <silent> [oh :call gruvbox#hls_show()<CR>
+"   nnoremap <silent> ]oh :call gruvbox#hls_hide()<CR>
+"   nnoremap <silent> yoh :call gruvbox#hls_toggle()<CR>
+"   nnoremap * :let @/ = ""<CR>:call gruvbox#hls_show()<CR>*
+"   nnoremap / :let @/ = ""<CR>:call gruvbox#hls_show()<CR>/
+"   nnoremap ? :let @/ = ""<CR>:call gruvbox#hls_show()<CR>?
+" endif
 
 " fold settings
 set foldlevelstart=15
 set foldminlines=3
 
-autocmd Syntax javascript,json,typescript setlocal foldmethod=syntax
+if has('nvim')
+  autocmd Syntax css,go,html,javascript,javascriptreact,json,python,ruby,rust,toml,typescript,typescriptreact,yaml
+   \ set foldmethod=expr foldexpr=nvim_treesitter#foldexpr()
+else
+  autocmd Syntax javascript,json,typescript setlocal foldmethod=syntax
+endif
 
-"# FileType Specific Settings
+"### appearance: nvim-treesitter
 
-"## FileType: help
+if has('nvim')
 
-augroup help_custom_setting
-  autocmd!
-  autocmd FileType help nmap <buffer> gq :quit<CR>
-augroup END
+" hi! link TSAnnotation
+" hi! link TSAttribute
+hi! link TSBoolean Boolean
+hi! link TSCharacter Character
+hi! link TSComment Comment
+" hi! link TSConstructor
+hi! link TSConditional Conditional
+hi! link TSConstant Constant
+hi! link TSConstBuiltin Constant
+hi! link TSConstMacro Constant
+" hi! link TSConstructor
+hi! link TSError GruvboxRedUnderline
+hi! link TSException Exception
+" hi! link TSField
+hi! link TSFloat Float
+hi! link TSFunction Function
+hi! link TSFuncBuiltin Function
+" hi! link TSFuncMacro
+hi! link TSInclude Include
+hi! link TSKeyword GruvboxRed
+hi! link TSKeywordFunction GruvboxAqua
+hi! link TSKeywordOperator TSOperator
+hi! link TSLabel Label
+" hi! link TSMethod
+" hi! link TSNamespace
+" hi! link TSNone
+hi! link TSNumber Number
+" hi! link TSOperator
+" hi! link TSParameter
+" hi! link TSParameterReference
+hi! link TSProperty GruvboxBlue
+hi! link TSPunctBracket GruvboxFg1
+hi! link TSPunctDelimiter GruvboxFg1
+" hi! link TSPunctSpecial
+hi! link TSRepeat Repeat
+hi! link TSString String
+" hi! link TSStringRegex
+" hi! link TSStringEscape
+" hi! link TSSymbol
+hi! link TSTag GruvboxGreen
+" hi! link TSTagDelimiter
+" hi! link TSText
+hi! TSStrong term=bold cterm=bold gui=bold
+hi! TSEmphasis term=italic cterm=italic gui=italic
+hi! TSUnderline term=underline cterm=underline gui=underline
+hi! TSStrike term=strikethrough cterm=strikethrough gui=strikethrough
+" hi! link TSTitle
+" hi! link TSLiteral
+" hi! link TSURI
+" hi! link TSMath
+" hi! link TSTextReference
+" hi! link TSEnviroment
+" hi! link TSEnviromentName
+" hi! link TSNote
+hi! link TSWarning WarningMsg
+hi! link TSDanger ErrorMsg
+hi! link TSType GruvboxAqua
+hi! link TSTypeBuiltin Type
+hi! link TSVariable GruvboxFg1
+hi! link TSVariableBuiltin Identifier
 
-"## FileType: json
-
-autocmd BufNewFile,BufRead tsconfig*.json setlocal filetype=jsonc
-autocmd FileType json syntax match Comment +\/\/.\+$+
-
-"## FileType: tmux
-
-autocmd FileType tmux nnoremap <silent><buffer> K :call tmux#man()<CR>
-
-"## FileType: vim
-
-autocmd FileType vim set foldexpr=VimFolds(v:lnum)
-
-function! VimFolds(lnum)
-  let s:cur_line = getline(a:lnum)
-  if s:cur_line =~ '^"#'
-    return '>' . (matchend(s:cur_line, '"#*') - 1)
-  else
-    return '='
-  endif
-endfunction
+endif
 
 " Everything that can happen, happens. It has to end well and it has to end badly. It has to end every way it can.
